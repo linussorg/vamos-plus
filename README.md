@@ -20,3 +20,7 @@ VAMOS+ is a software for detecting meteors (shooting stars) in videos. To make t
 
 # Execution
 To run VAMOS+, execute the "vamos_plus.py" file with python and make sure all of the above packages are correctly installed.
+
+# Known Linux issues
+Working with VAMOS+ on Linux has some performance benefits over Windows, but also comes with some missing features, such as the video player in the results window or the video preview during the analysis. 
+These problems are going to be solved with the UI overhaul that's planned for VAMOS+.
