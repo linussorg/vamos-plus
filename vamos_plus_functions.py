@@ -8,7 +8,7 @@ import time
 from datetime import timedelta
 from xml.dom import minidom
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import cv2
 import numpy
 import numpy as np
