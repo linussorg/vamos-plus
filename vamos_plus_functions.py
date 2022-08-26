@@ -83,7 +83,7 @@ def box_overlap(box1, box2, resolution, padding=0):
     )
 
 
-def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
+def analyse_detections_list(videopath, xmlpath, folderpath, video_id, window, use_xml):
     with open(os.path.join(folderpath, "detections_list_" + video_id + ".txt"), "r") as f:
         meteor_data = json.loads(f.read())
 
@@ -117,7 +117,7 @@ def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
     return True, meteor_data, [], convert_datetime(base_time)
 
 
-def analyse_disabled(videopath, xmlpath, folderpath, video_id, window, use_xml):
+def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
     """
     Analyse a video.
 
