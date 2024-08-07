@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import QWidget, QLabel, QGridLayout, QSpacerItem, QPushButt
     QDoubleSpinBox, QLineEdit, QComboBox, QGraphicsView, QGraphicsScene
 
 from vamos_plus_functions import analyse, get_thumbnail, apply_defaults, set_defaults, delete_defaults, \
-    write_vamos_file, check_pos
+    write_vamos_file, check_pos, analyse_detections_list
 
 StyleSheet = """
 QMainWindow#AnalysationWindow {
@@ -705,9 +705,9 @@ class SettingsWindow(QWidget):
             self.signal_label.change_value("Detection")
             self.sort_out_area_difference.change_value(4)
             self.max_length.change_value(10)
-            self.min_length.change_value(0.08)
+            self.min_length.change_value(0.04)
             self.resolution_to_write.change_value([960, 540])
-            self.max_distance.change_value(200)
+            self.max_distance.change_value(100)
             self.max_frames.change_value(3)
             self.delete_threshold.change_value(10)
             self.delete_percentage.change_value(0.25)
@@ -876,7 +876,7 @@ class CustomGraphicsView(QGraphicsView):
             painter = QPainter(self.viewport())
             painter.begin(self)
             painter.setPen(Qt.lightGray)
-            painter.drawRect((self.coordinates[0]) - 50, self.coordinates[1] - 50, 100, 100)
+            painter.drawRect(int((self.coordinates[0]) - 50), int(self.coordinates[1] - 50), 100, 100)
             painter.end()
 
 
@@ -1257,8 +1257,7 @@ class ResultsWindow(QWidget):
                 self.video_player.setMedia(
                     QMediaContent(QUrl.fromLocalFile(video)))
                 self.video_player.play()
-                self.video_player.setPosition(
-                    (int(model.index(meteor_index, 3).data().split(",")[0]) - 3) * (1000 / self.Fps_list[i]))
+                self.video_player.setPosition(int((int(model.index(meteor_index, 3).data().split(",")[0]) - 3) * (1000 / self.Fps_list[i])))
                 self.play_button.setIcon(self.pause_icon)
 
                 self.media_index = i
@@ -1729,7 +1728,7 @@ class AnalysationWindow(QMainWindow):
                     self.start_frame = 0
 
                 if self.use_xml:
-                    self.was_successful, self.video_meteor_data, self.sort_out_list, self.base_time_separated = analyse(
+                    self.was_successful, self.video_meteor_data, self.sort_out_list, self.base_time_separated = analyse_detections_list(
                         self.videopath_list[self.video_index],
                         self.xmlpath_list[self.video_index],
                         self.folderpath,
@@ -1737,7 +1736,7 @@ class AnalysationWindow(QMainWindow):
                         Window,
                         True)
                 else:
-                    self.was_successful, self.video_meteor_data, self.sort_out_list, self.base_time_separated = analyse(
+                    self.was_successful, self.video_meteor_data, self.sort_out_list, self.base_time_separated = analyse_detections_list(
                         self.videopath_list[self.video_index],
                         None,
                         self.folderpath,

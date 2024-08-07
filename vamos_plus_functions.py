@@ -8,7 +8,7 @@ import time
 from datetime import timedelta
 from xml.dom import minidom
 
-#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import cv2
 import numpy
 import numpy as np
@@ -186,7 +186,7 @@ def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
     len_mul = window.len_mul
     ar_mul = window.ar_mul
 
-    saved_model_path = "files/saved_model"
+    saved_model_path = "files/tensorflow/saved_model"
 
     print("Loading the Tensorflow model...", end=" ")
     detect_fn = tf.saved_model.load(saved_model_path)
@@ -203,7 +203,6 @@ def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
         video_not_found.exec_()
         return False, {}, []
 
-    # cap = cv2.VideoCapture(videopath)
     print(f"Detected a resolution of {resolution[0]}x{resolution[1]} for {os.path.basename(videopath)}")
     frame_number = window.start_frame
     iteration = 0
@@ -222,13 +221,13 @@ def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
     t.start()
     frames_since_reset = 1
 
-    for i in range(length - window.start_frame + 1):
+    for i in range(length - window.start_frame):
         frames_since_reset += 1
         if frame_number % 100 == 0:
             t.restart()
             frames_since_reset = 1
         progress_percent = frame_number / length * 100
-        window.analysation_progressdialog.setValue(progress_percent)
+        window.analysation_progressdialog.setValue(int(progress_percent))
         print(window.analysation_progressdialog.value())
         window.remaining_seconds = round((length - frame_number) * ((t.elapsed() / frames_since_reset) / 1000)) + 1
         window.remaining_time = str(datetime.timedelta(seconds=window.remaining_seconds))
@@ -240,35 +239,48 @@ def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
 
         image_np = video.read()
 
-        try:
-            input_tensor = tf.convert_to_tensor(image_np)
-        except ValueError as e:
-            print("Image could not be loaded:", e)
-            continue
-        input_tensor = input_tensor[tf.newaxis, ...]
+        if image_np is None:
+            break
 
-        inference_start = time.perf_counter()
-        detections = detect_fn(input_tensor)
+        slice_ranges = [
+            [0, resolution[1]//2, 0, resolution[0]//2],
+            [0, resolution[1]//2, resolution[0]//2, resolution[0]],
+            [resolution[1]//2, resolution[1], 0, resolution[0]//2],
+            [resolution[1]//2, resolution[1], resolution[0]//2, resolution[0]]
+        ]
 
-        num_detections = int(detections.pop("num_detections"))
-        detections = {key: value[0, :num_detections].numpy()
-                      for key, value in detections.items()}
-        detections["num_detections"] = num_detections
+        for slice_range in slice_ranges:
+            print("Slice range", slice_range)
+            image = image_np[slice_range[0]:slice_range[1], slice_range[2]:slice_range[3]]
 
-        detections["detection_classes"] = detections["detection_classes"].astype(np.int64)
-
-        valid_boxes = {}
-        for index, score in enumerate(detections["detection_scores"]):
-            if score < 0.2:
+            try:
+                input_tensor = tf.convert_to_tensor(image)
+            except ValueError as e:
+                print("Image could not be loaded:", e)
                 continue
-            boxes = detections["detection_boxes"][index]
-            coordinates = [round(boxes[0] * resolution[1]), round(boxes[1] * resolution[0]),
-                           round(boxes[2] * resolution[1]), round(boxes[3] * resolution[0])]
-            if calculate_area(coordinates) < max_area * ar_mul:
-                valid_boxes[score] = [round(boxes[0] * resolution[1]), round(boxes[1] * resolution[0]),
-                                      round(boxes[2] * resolution[1]), round(boxes[3] * resolution[0])]
+            input_tensor = input_tensor[tf.newaxis, ...]
 
-        detections_list.append(valid_boxes)
+            inference_start = time.perf_counter()
+            detections = detect_fn(input_tensor)
+
+            num_detections = int(detections.pop("num_detections"))
+            detections = {key: value[0, :num_detections].numpy()
+                        for key, value in detections.items()}
+            detections["num_detections"] = num_detections
+
+            detections["detection_classes"] = detections["detection_classes"].astype(np.int64)
+
+            valid_boxes = {}
+            for index, score in enumerate(detections["detection_scores"]):
+                if score < 0.15:
+                    continue
+                boxes = detections["detection_boxes"][index]
+                coordinates = [round(slice_range[0] + boxes[0] * resolution[1]), round(slice_range[0] + boxes[1] * resolution[0]),
+                            round(slice_range[2] + boxes[2] * resolution[1]), round(slice_range[2] + boxes[3] * resolution[0])]
+                if calculate_area(coordinates) < max_area * ar_mul:
+                    valid_boxes[score] = coordinates
+
+            detections_list.append(valid_boxes)
 
         frame_number += 1
 
@@ -323,7 +335,12 @@ def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
             continue
         for boxes_to_replace in item:
             for score in boxes_to_replace[0]:
-                del detections_list[index][score]
+                try:
+                    del detections_list[index][score]
+                except KeyError as e:
+                    print(str(e))
+                    print(detections_list[index])
+
             detections_list[index][boxes_to_replace[1][0]] = boxes_to_replace[1][1]
 
     detection_count = 0
@@ -347,16 +364,15 @@ def analyse(videopath, xmlpath, folderpath, video_id, window, use_xml):
     with open(os.path.join(folderpath, f"detections_list_{video_id}.txt"), "w") as f:
         # f.write(json.dumps(detections_list) + "\n" + json.dumps(meteor_data))
         f.write(json.dumps(meteor_data))
-    # cap = cv2.VideoCapture(videopath)
-    # for i, data in enumerate(detections_list):
-    #     x, image = cap.read()
-    #     image_resized = cv2.resize(image, (960, 540))
-    #     if len(data.keys()) != 0:
-    #         for box in list(data.values()):
-    #             image = cv2.rectangle(image_resized, (box[1] // 4, box[0] // 4), (box[3] // 4, box[2] // 4),
-    #                                   (255, 255, 255), 1)
-    #     cv2.imwrite(os.path.join(folderpath, f"{video_id}/{i + 1}-analysed.jpg"), image_resized)
-    # cap.release()
+    cap = cv2.VideoCapture(videopath)
+    for i, data in enumerate(detections_list):
+        x, image = cap.read()
+        image_resized = cv2.resize(image, (1940, 1080))
+        if len(data.keys()) != 0:
+            for box in list(data.values()):
+                image_resized = cv2.rectangle(image_resized, (box[1] // 2, box[0] // 2), (box[3] // 2, box[2] // 2), (255, 255, 255), 1)
+            cv2.imwrite(os.path.join(folderpath, f"{video_id}/{i + 1}-analysed.jpg"), image_resized)
+    cap.release()
 
     return True, meteor_data, [], convert_datetime(base_time)
 
@@ -994,44 +1010,47 @@ def generate_results(fps, meteor_data, sort_out_list, len_mul):
             for existing_meteor in existing_meteors:
                 if len(meteors) == 0:
                     break
-                if abs(meteors[existing_meteor]["frames"][-1] - signal["frame"][0]) <= 10 and check_pos(
+                if abs(meteors[existing_meteor]["frames"][-1] - signal["frame"][0]) <= 200 and check_pos(
                         calculate_center(signal["box_coordinates"]),
                         calculate_center(meteors[existing_meteor]["box_coordinates"][-1]), max_distance * len_mul):
+                    if abs(meteors[existing_meteor]["frames"][-1] - signal["frame"][0]) > 20:
+                        meteors[existing_meteor]["sort_out"] = True
                     meteors[existing_meteor]["frames"].append(signal["frame"][0])
                     meteors[existing_meteor]["area"].append(signal["area"])
                     meteors[existing_meteor]["box_coordinates"].append(signal["box_coordinates"])
                     success = True
                     break
-            if not success:
+            if not success:  # Current frame could not be assigned to previous meteor
                 meteors["M-" + "%07d" % meteor_list_count] = {
                     "VideoID": signal["VideoID"],
                     "box_coordinates": [signal["box_coordinates"]],
                     "frames": signal["frame"],
                     "area": [signal["area"]],
                     "rotation": [signal["rotation"]],
+                    "sort_out": False,
                 }
                 meteor_list_count += 1
                 existing_meteors.reverse()
-                for existing_meteor in existing_meteors:
-                    if len(meteors) == 0:
-                        break
-                    if abs(meteors[existing_meteor]["frames"][-1] - signal["frame"][0]) <= 10 and check_pos(
-                            calculate_center(signal["box_coordinates"]),
-                            calculate_center(meteors[existing_meteor]["box_coordinates"][-1]), max_distance * len_mul):
-                        meteors[existing_meteor]["frames"].append(signal["frame"][0])
-                        meteors[existing_meteor]["area"].append(signal["area"])
-                        meteors[existing_meteor]["box_coordinates"].append(signal["box_coordinates"])
-                        success = True
-                        break
-                if not success:
-                    meteors["M-" + "%07d" % meteor_list_count] = {
-                        "VideoID": signal["VideoID"],
-                        "box_coordinates": [signal["box_coordinates"]],
-                        "frames": signal["frame"],
-                        "area": [signal["area"]],
-                        "rotation": [signal["rotation"]],
-                    }
-                    meteor_list_count += 1
+                # for existing_meteor in existing_meteors:
+                #     if len(meteors) == 0:
+                #         break
+                #     if abs(meteors[existing_meteor]["frames"][-1] - signal["frame"][0]) <= 10 and check_pos(
+                #             calculate_center(signal["box_coordinates"]),
+                #             calculate_center(meteors[existing_meteor]["box_coordinates"][-1]), max_distance * len_mul):
+                #         meteors[existing_meteor]["frames"].append(signal["frame"][0])
+                #         meteors[existing_meteor]["area"].append(signal["area"])
+                #         meteors[existing_meteor]["box_coordinates"].append(signal["box_coordinates"])
+                #         success = True
+                #         break
+                # if not success:
+                #     meteors["M-" + "%07d" % meteor_list_count] = {
+                #         "VideoID": signal["VideoID"],
+                #         "box_coordinates": [signal["box_coordinates"]],
+                #         "frames": signal["frame"],
+                #         "area": [signal["area"]],
+                #         "rotation": [signal["rotation"]],
+                #     }
+                #     meteor_list_count += 1
 
     for meteor in meteors.keys():
         meteors[meteor]["position"] = calculate_mean_position(meteors[meteor]["box_coordinates"])
@@ -1052,18 +1071,25 @@ def generate_results(fps, meteor_data, sort_out_list, len_mul):
     meteors_updated = {}
     delete_keys = []
 
-    # Remove the sorted out meteor signals
     for key in meteors:
         duration = meteors[key]["duration"]
+        if meteors[key]["sort_out"]:
+            delete_keys.append(key)
+            continue
         # area = meteors[key]["area"]
         if duration > max_length * fps:
             print(
                 f"Duration of {duration} is longer than {max_length * fps} frames")
             delete_keys.append(key)
+        elif duration < min_length * fps:
+            print(
+                f"Duration of {duration} is shorter than {min_length * fps} frames")
+            delete_keys.append(key)
         # elif min_area < area > max_area:
         #     print(f"Area of {area} px is smaller than {min_area} px or bigger than {max_area} px")
         #     delete_keys.append(key)
 
+    # Remove the sorted out meteor signals
     for key in delete_keys:
         del meteors[key]
 
@@ -1096,7 +1122,8 @@ def write_vamos_file(fps, vamos_filepath, meteor_data, sort_out_list, base_time_
     file_string += json.dumps(resolution_list) + "\n"
     # try:
     len_mul = resolution_list[1][0] // 1080
-    file_string += json.dumps(generate_results(fps, meteor_data, sort_out_list, len_mul)) + "\n"
+    generated_results = generate_results(fps, meteor_data, sort_out_list, len_mul)
+    file_string += json.dumps(generated_results) + "\n"
     # file_string += json.dumps(meteor_data) + "\n"
     # file_string += json.dumps(sort_out_list) + "\n"
     # except Exception as e:
@@ -1105,6 +1132,7 @@ def write_vamos_file(fps, vamos_filepath, meteor_data, sort_out_list, base_time_
     #     file_string += json.dumps(sort_out_list) + "\n"
     with open(vamos_filepath, "w") as f:
         f.write(file_string)
+    print_table(generated_results)
 
 
 def print_table(input_data):
