@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import QWidget, QLabel, QGridLayout, QSpacerItem, QPushButt
     QMessageBox, QSpinBox, QDialog, QCheckBox, QRadioButton, QTableView, QSlider, QSplitter, QTabWidget, \
     QDoubleSpinBox, QLineEdit, QComboBox, QGraphicsView, QGraphicsScene
 
-from vamos_plus_functions import analyse, get_thumbnail, apply_defaults, set_defaults, delete_defaults, \
+from vamos_plus_functions import analyse, analyse_diff, get_thumbnail, apply_defaults, set_defaults, delete_defaults, \
     write_vamos_file, check_pos, analyse_detections_list
 
 StyleSheet = """
@@ -1728,7 +1728,7 @@ class AnalysationWindow(QMainWindow):
                     self.start_frame = 0
 
                 if self.use_xml:
-                    self.was_successful, self.video_meteor_data, self.sort_out_list, self.base_time_separated = analyse_detections_list(
+                    self.was_successful, self.video_meteor_data, self.sort_out_list, self.base_time_separated = analyse_diff(
                         self.videopath_list[self.video_index],
                         self.xmlpath_list[self.video_index],
                         self.folderpath,
@@ -1736,7 +1736,7 @@ class AnalysationWindow(QMainWindow):
                         Window,
                         True)
                 else:
-                    self.was_successful, self.video_meteor_data, self.sort_out_list, self.base_time_separated = analyse_detections_list(
+                    self.was_successful, self.video_meteor_data, self.sort_out_list, self.base_time_separated = analyse_diff(
                         self.videopath_list[self.video_index],
                         None,
                         self.folderpath,

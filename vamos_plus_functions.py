@@ -506,7 +506,7 @@ def analyse_diff(videopath, xmlpath, folderpath, video_id, window, use_xml):
             t.restart()
             frames_since_reset = 1
         progress_percent = frame_number / length * 100
-        window.analysation_progressdialog.setValue(progress_percent)
+        window.analysation_progressdialog.setValue(int(progress_percent))
         window.remaining_seconds = round((length - frame_number) * ((t.elapsed() / frames_since_reset) / 1000)) + 1
         window.remaining_time = str(datetime.timedelta(seconds=window.remaining_seconds))
         window.analysation_progressdialog.setLabelText(
@@ -721,26 +721,26 @@ def analyse_diff(videopath, xmlpath, folderpath, video_id, window, use_xml):
         cv2.putText(stack, 'Threshold', (1250, 30), cv2.FONT_HERSHEY_DUPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
 
         # Opening windows for visualization
-        # cv2.imshow('VAMOS - Analysation', frame_resized)
+        cv2.imshow('VAMOS - Analysation', frame_resized)
 
         # try:
         #     cv2.imshow('VAMOS - Difference', diff_to_write)
         # except UnboundLocalError:
         #     pass
-        # cv2.imshow('VAMOS - Additional details', stack)
+        cv2.imshow('VAMOS - Additional details', stack)
 
-        # key = cv2.waitKey(1)
+        key = cv2.waitKey(1)
 
-        # if key == 27 or window.analysation_progressdialog.wasCanceled():
-        #     window.broke_frame = frame_number
-        #     break
+        if key == 27 or window.analysation_progressdialog.wasCanceled():
+            window.broke_frame = frame_number
+            break
 
-        # if key == ord('r'):
-        #     ref_frame = gray
-        #     print("Frame reset because of key pressed.")
-        #
-        # if key == ord('p'):
-        #     pause_analysation = True
+        if key == ord('r'):
+            ref_frame = gray
+            print("Frame reset because of key pressed.")
+
+        if key == ord('p'):
+            pause_analysation = True
 
         frame_number += 1
 
